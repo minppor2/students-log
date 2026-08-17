@@ -4,7 +4,7 @@
       "collectionGroup": "submissions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "studentUid", "order": "ASCENDING" },
+        { "fieldPath": "studentCode", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },

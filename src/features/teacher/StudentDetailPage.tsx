@@ -80,6 +80,13 @@ export function StudentDetailPage() {
             <summary className="cursor-pointer font-medium text-slate-900">
               작품 {i + 1} · {s.title} ({s.unit})
             </summary>
+            {s.thumbnailDataUrl && (
+              <img
+                src={s.thumbnailDataUrl}
+                alt={s.title}
+                className="mt-2 h-32 w-32 rounded-lg object-cover"
+              />
+            )}
             <p className="mt-2 text-sm text-slate-600">
               오브젝트 {s.counts.objects}개 · 블록 {s.counts.blocks}개 · 변수 {s.counts.variables}개 · 반복{' '}
               {s.counts.repeats}개 · 조건 {s.counts.conditions}개 · 함수 {s.counts.functions}개

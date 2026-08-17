@@ -52,7 +52,7 @@ export function NewSubmissionPage() {
     }
 
     try {
-      const previous = await fetchPreviousCounts(session.uid)
+      const previous = await fetchPreviousCounts(session.code)
       const insights = buildInsights(counts, previous)
       setStep({ kind: 'result', counts, insights })
 

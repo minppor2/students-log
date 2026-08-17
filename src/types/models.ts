@@ -33,7 +33,8 @@ export interface SubmissionDoc {
   unit: string
   title: string
   fileName: string
-  storagePath: string
+  storagePath: string | null
+  thumbnailDataUrl: string | null
   counts: BlockCounts
   insights: SubmissionInsights
   aiFeedback: string | null

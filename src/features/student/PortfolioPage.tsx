@@ -8,7 +8,7 @@ import { formatDate } from '../../lib/format'
 export function PortfolioPage() {
   const { session, logout } = useStudentSession()
   const { units } = useTeacherUnits(session?.teacherId)
-  const { submissions, isLoading } = useStudentSubmissions(session?.uid)
+  const { submissions, isLoading } = useStudentSubmissions(session?.code)
   const [unitFilter, setUnitFilter] = useState('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -53,36 +53,41 @@ export function PortfolioPage() {
           </p>
         )}
         {filtered.map((s) => (
-          <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-4">
-            <p className="text-xs text-slate-400">{formatDate(s.createdAt)}</p>
-            <p className="font-medium text-slate-900">{s.title}</p>
-            <p className="mt-1 text-sm text-slate-500">
-              사용 블록 {s.counts.blocks}개 · 오브젝트 {s.counts.objects}개
-            </p>
-            <button
-              onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}
-              className="mt-2 text-sm font-medium text-slate-700 underline underline-offset-2"
-            >
-              분석 결과 보기
-            </button>
-            {expandedId === s.id && (
-              <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-                <p>
-                  변수 {s.counts.variables}개 · 반복 {s.counts.repeats}개 · 조건 {s.counts.conditions}개 · 함수{' '}
-                  {s.counts.functions}개
-                </p>
-                {s.insights.reused.length > 0 && (
-                  <p className="mt-1">잘 활용한 요소: {s.insights.reused.join('·')}</p>
-                )}
-                {s.insights.new.length > 0 && <p>새롭게 사용한 요소: {s.insights.new.join('·')}</p>}
-                {s.insights.expanded.length > 0 && (
-                  <p>이전 작품보다 확장된 점: {s.insights.expanded.join('·')}</p>
-                )}
-                {s.aiFeedback && (
-                  <p className="mt-2 rounded-lg bg-indigo-50 p-2 text-indigo-900">{s.aiFeedback}</p>
-                )}
-              </div>
+          <div key={s.id} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+            {s.thumbnailDataUrl && (
+              <img src={s.thumbnailDataUrl} alt={s.title} className="aspect-square w-full object-cover" />
             )}
+            <div className="p-4">
+              <p className="text-xs text-slate-400">{formatDate(s.createdAt)}</p>
+              <p className="font-medium text-slate-900">{s.title}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                사용 블록 {s.counts.blocks}개 · 오브젝트 {s.counts.objects}개
+              </p>
+              <button
+                onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}
+                className="mt-2 text-sm font-medium text-slate-700 underline underline-offset-2"
+              >
+                분석 결과 보기
+              </button>
+              {expandedId === s.id && (
+                <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+                  <p>
+                    변수 {s.counts.variables}개 · 반복 {s.counts.repeats}개 · 조건 {s.counts.conditions}개 · 함수{' '}
+                    {s.counts.functions}개
+                  </p>
+                  {s.insights.reused.length > 0 && (
+                    <p className="mt-1">잘 활용한 요소: {s.insights.reused.join('·')}</p>
+                  )}
+                  {s.insights.new.length > 0 && <p>새롭게 사용한 요소: {s.insights.new.join('·')}</p>}
+                  {s.insights.expanded.length > 0 && (
+                    <p>이전 작품보다 확장된 점: {s.insights.expanded.join('·')}</p>
+                  )}
+                  {s.aiFeedback && (
+                    <p className="mt-2 rounded-lg bg-indigo-50 p-2 text-indigo-900">{s.aiFeedback}</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>

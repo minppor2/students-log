@@ -3,10 +3,10 @@ import { ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from '../../lib/firebase'
 import type { BlockCounts, SubmissionInsights } from '../../types/models'
 
-export async function fetchPreviousCounts(studentUid: string): Promise<BlockCounts | null> {
+export async function fetchPreviousCounts(studentCode: string): Promise<BlockCounts | null> {
   const q = query(
     collection(db, 'submissions'),
-    where('studentUid', '==', studentUid),
+    where('studentCode', '==', studentCode),
     orderBy('createdAt', 'desc'),
     limit(1),
   )
@@ -25,12 +25,24 @@ interface SaveSubmissionInput {
   counts: BlockCounts
   insights: SubmissionInsights
   aiFeedback: string | null
+  thumbnailDataUrl?: string | null
 }
 
 export async function saveSubmission(input: SaveSubmissionInput): Promise<void> {
   const submissionId = crypto.randomUUID()
-  const storagePath = `entries/${input.studentUid}/${submissionId}.ent`
-  await uploadBytes(ref(storage, storagePath), input.file)
+  const attemptedPath = `entries/${input.studentUid}/${submissionId}.ent`
+
+  // The raw file backup is a nice-to-have audit trail, not core to growth
+  // tracking — if Storage isn't set up yet (or the upload fails for any
+  // reason), still save the analysis rather than blocking the student.
+  let storagePath: string | null = null
+  try {
+    await uploadBytes(ref(storage, attemptedPath), input.file)
+    storagePath = attemptedPath
+  } catch (err) {
+    console.warn('원본 파일 업로드 실패, 분석 결과만 저장합니다.', err)
+  }
+
   await addDoc(collection(db, 'submissions'), {
     studentCode: input.studentCode,
     studentUid: input.studentUid,
@@ -39,6 +51,7 @@ export async function saveSubmission(input: SaveSubmissionInput): Promise<void> 
     title: input.title,
     fileName: input.file.name,
     storagePath,
+    thumbnailDataUrl: input.thumbnailDataUrl ?? null,
     counts: input.counts,
     insights: input.insights,
     aiFeedback: input.aiFeedback,

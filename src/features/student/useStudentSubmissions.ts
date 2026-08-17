@@ -3,18 +3,22 @@ import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestor
 import { db, isFirebaseConfigured } from '../../lib/firebase'
 import type { Submission } from '../../types/models'
 
-export function useStudentSubmissions(studentUid: string | undefined) {
+// Filtered by studentCode (stable across devices), not studentUid — a
+// student reclaiming their code from a different lab computer gets a new
+// anonymous uid each time, so uid can't be the query key without losing
+// access to everything they submitted from earlier devices.
+export function useStudentSubmissions(studentCode: string | undefined) {
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (!studentUid || !isFirebaseConfigured) {
+    if (!studentCode || !isFirebaseConfigured) {
       setIsLoading(false)
       return
     }
     const q = query(
       collection(db, 'submissions'),
-      where('studentUid', '==', studentUid),
+      where('studentCode', '==', studentCode),
       orderBy('createdAt', 'desc'),
     )
     const unsubscribe = onSnapshot(q, (snap) => {
@@ -22,7 +26,7 @@ export function useStudentSubmissions(studentUid: string | undefined) {
       setIsLoading(false)
     })
     return unsubscribe
-  }, [studentUid])
+  }, [studentCode])
 
   return { submissions, isLoading }
 }
