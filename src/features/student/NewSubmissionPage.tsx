@@ -51,24 +51,29 @@ export function NewSubmissionPage() {
       return
     }
 
+    // "이전 작품과 비교" is a nice-to-have on top of the core counts, not
+    // something worth blocking the student over — if the lookup fails
+    // (network blip, slow rules evaluation, whatever), treat it as "no
+    // previous work" rather than refusing to show the analysis at all.
+    let previous: BlockCounts | null = null
     try {
-      const previous = await fetchPreviousCounts(session.code)
-      const insights = buildInsights(counts, previous)
-      setStep({ kind: 'result', counts, insights })
-
-      // Best-effort AI feedback: fetched after the objective counts are
-      // already on screen, so a slow/failed Gemini call never blocks the
-      // student from seeing their analysis or saving it.
-      setAiFeedback(null)
-      setIsFetchingFeedback(true)
-      fetchAiFeedback({ title: title.trim(), unit, counts, insights })
-        .then(setAiFeedback)
-        .finally(() => setIsFetchingFeedback(false))
-    } catch {
-      setError('이전 작품 기록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
-    } finally {
-      setIsAnalyzing(false)
+      previous = await fetchPreviousCounts(session.code)
+    } catch (err) {
+      console.warn('이전 작품 기록 조회 실패, 비교 없이 진행합니다.', err)
     }
+
+    const insights = buildInsights(counts, previous)
+    setStep({ kind: 'result', counts, insights })
+    setIsAnalyzing(false)
+
+    // Best-effort AI feedback: fetched after the objective counts are
+    // already on screen, so a slow/failed Gemini call never blocks the
+    // student from seeing their analysis or saving it.
+    setAiFeedback(null)
+    setIsFetchingFeedback(true)
+    fetchAiFeedback({ title: title.trim(), unit, counts, insights })
+      .then(setAiFeedback)
+      .finally(() => setIsFetchingFeedback(false))
   }
 
   async function handleSave() {
