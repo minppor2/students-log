@@ -24,6 +24,7 @@ interface SaveSubmissionInput {
   file: File
   counts: BlockCounts
   insights: SubmissionInsights
+  aiFeedback: string | null
 }
 
 export async function saveSubmission(input: SaveSubmissionInput): Promise<void> {
@@ -40,6 +41,7 @@ export async function saveSubmission(input: SaveSubmissionInput): Promise<void> 
     storagePath,
     counts: input.counts,
     insights: input.insights,
+    aiFeedback: input.aiFeedback,
     createdAt: serverTimestamp(),
   })
 }

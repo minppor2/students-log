@@ -78,6 +78,9 @@ export function PortfolioPage() {
                 {s.insights.expanded.length > 0 && (
                   <p>이전 작품보다 확장된 점: {s.insights.expanded.join('·')}</p>
                 )}
+                {s.aiFeedback && (
+                  <p className="mt-2 rounded-lg bg-indigo-50 p-2 text-indigo-900">{s.aiFeedback}</p>
+                )}
               </div>
             )}
           </div>

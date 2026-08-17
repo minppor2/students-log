@@ -84,6 +84,9 @@ export function StudentDetailPage() {
               오브젝트 {s.counts.objects}개 · 블록 {s.counts.blocks}개 · 변수 {s.counts.variables}개 · 반복{' '}
               {s.counts.repeats}개 · 조건 {s.counts.conditions}개 · 함수 {s.counts.functions}개
             </p>
+            {s.aiFeedback && (
+              <p className="mt-2 rounded-lg bg-indigo-50 p-2 text-sm text-indigo-900">{s.aiFeedback}</p>
+            )}
           </details>
         ))}
       </div>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStudentSession } from '../../contexts/StudentSessionContext'
 import { useTeacherUnits } from './useTeacherUnits'
 import { analyzeEntFile, buildInsights, EntAnalysisError } from '../../lib/entryAnalyzer'
+import { fetchAiFeedback } from '../../lib/aiFeedback'
 import { fetchPreviousCounts, saveSubmission } from './submissionUpload'
 import type { BlockCounts, SubmissionInsights } from '../../types/models'
 
@@ -21,6 +22,8 @@ export function NewSubmissionPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [step, setStep] = useState<Step>({ kind: 'form' })
+  const [aiFeedback, setAiFeedback] = useState<string | null>(null)
+  const [isFetchingFeedback, setIsFetchingFeedback] = useState(false)
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const next = e.target.files?.[0] ?? null
@@ -34,13 +37,35 @@ export function NewSubmissionPage() {
     if (!session || !file || !title.trim() || !unit) return
     setError(null)
     setIsAnalyzing(true)
+
+    // Two independent failure domains: a bad .ent file vs. a Firestore
+    // problem fetching the previous submission. Conflating them into one
+    // message previously told students their file was broken when the real
+    // cause was a backend issue.
+    let counts: BlockCounts
     try {
-      const counts = await analyzeEntFile(file)
+      counts = await analyzeEntFile(file)
+    } catch (err) {
+      setError(err instanceof EntAnalysisError ? err.message : '분석할 수 없는 엔트리 파일입니다.')
+      setIsAnalyzing(false)
+      return
+    }
+
+    try {
       const previous = await fetchPreviousCounts(session.uid)
       const insights = buildInsights(counts, previous)
       setStep({ kind: 'result', counts, insights })
-    } catch (err) {
-      setError(err instanceof EntAnalysisError ? err.message : '분석할 수 없는 엔트리 파일입니다.')
+
+      // Best-effort AI feedback: fetched after the objective counts are
+      // already on screen, so a slow/failed Gemini call never blocks the
+      // student from seeing their analysis or saving it.
+      setAiFeedback(null)
+      setIsFetchingFeedback(true)
+      fetchAiFeedback({ title: title.trim(), unit, counts, insights })
+        .then(setAiFeedback)
+        .finally(() => setIsFetchingFeedback(false))
+    } catch {
+      setError('이전 작품 기록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     } finally {
       setIsAnalyzing(false)
     }
@@ -60,6 +85,7 @@ export function NewSubmissionPage() {
         file,
         counts: step.counts,
         insights: step.insights,
+        aiFeedback,
       })
       navigate('/student')
     } catch {
@@ -89,10 +115,24 @@ export function NewSubmissionPage() {
             <p className="text-slate-400">첫 작품이에요. 다음 작품부터 변화가 표시됩니다.</p>
           )}
         </div>
+        {(isFetchingFeedback || aiFeedback) && (
+          <div className="mt-4 rounded-lg bg-indigo-50 p-3 text-sm text-indigo-900">
+            <p className="font-medium">AI 코치 피드백</p>
+            {isFetchingFeedback ? (
+              <p className="mt-1 text-indigo-400">생성 중...</p>
+            ) : (
+              <p className="mt-1">{aiFeedback}</p>
+            )}
+          </div>
+        )}
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         <div className="mt-6 flex gap-3">
           <button
-            onClick={() => setStep({ kind: 'form' })}
+            onClick={() => {
+              setStep({ kind: 'form' })
+              setAiFeedback(null)
+              setIsFetchingFeedback(false)
+            }}
             className="flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             다시 분석

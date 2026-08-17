@@ -36,6 +36,7 @@ export interface SubmissionDoc {
   storagePath: string
   counts: BlockCounts
   insights: SubmissionInsights
+  aiFeedback: string | null
   createdAt: number
 }
 
