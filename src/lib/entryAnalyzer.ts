@@ -15,6 +15,89 @@ export class EntAnalysisError extends Error {
   }
 }
 
+// A real playentry.org export (verified against an actual student .ent file)
+// is gzip-compressed tar, NOT a zip — `file` reports "gzip compressed data",
+// and gunzipping it yields a "POSIX tar archive" containing temp/project.json.
+// The original design assumed zip (like Scratch's .sb3) since no real sample
+// was available; that assumption was wrong, this one is confirmed. Zip
+// support is kept as a fallback in case some other Entry export path (e.g.
+// the offline editor) produces a different container.
+async function gunzip(buffer: ArrayBuffer): Promise<Uint8Array> {
+  const stream = new Response(buffer).body!.pipeThrough(new DecompressionStream('gzip'))
+  return new Uint8Array(await new Response(stream).arrayBuffer())
+}
+
+interface TarEntry {
+  name: string
+  content: Uint8Array
+}
+
+function parseTarOctal(bytes: Uint8Array): number {
+  let str = ''
+  for (const b of bytes) {
+    if (b === 0 || b === 32) continue
+    str += String.fromCharCode(b)
+  }
+  return str ? parseInt(str, 8) : 0
+}
+
+// Minimal POSIX/ustar reader: just enough to list regular-file entries and
+// their content. Doesn't handle GNU longname extensions (100-char name
+// field is plenty for "temp/project.json").
+function parseTar(buffer: Uint8Array): TarEntry[] {
+  const entries: TarEntry[] = []
+  let offset = 0
+  while (offset + 512 <= buffer.length) {
+    const header = buffer.subarray(offset, offset + 512)
+    if (header.every((b) => b === 0)) break
+
+    let name = ''
+    for (const b of header.subarray(0, 100)) {
+      if (b === 0) break
+      name += String.fromCharCode(b)
+    }
+    const size = parseTarOctal(header.subarray(124, 136))
+    const typeFlag = header[156]
+    offset += 512
+
+    if (name && (typeFlag === 0 || typeFlag === 48 /* '0' */)) {
+      entries.push({ name, content: buffer.subarray(offset, offset + size) })
+    }
+    offset += Math.ceil(size / 512) * 512
+  }
+  return entries
+}
+
+async function readProjectJson(file: File): Promise<Record<string, unknown>> {
+  const buffer = await file.arrayBuffer()
+
+  try {
+    const decompressed = await gunzip(buffer)
+    const entry = parseTar(decompressed).find((e) => /project\.json$/i.test(e.name))
+    if (entry) {
+      const parsed = JSON.parse(new TextDecoder('utf-8').decode(entry.content))
+      if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>
+    }
+  } catch {
+    // not gzip/tar — fall through to the zip attempt below
+  }
+
+  try {
+    const zip = await JSZip.loadAsync(buffer)
+    const projectEntry = Object.values(zip.files).find(
+      (e) => !e.dir && /project\.json$/i.test(e.name),
+    )
+    if (projectEntry) {
+      const parsed = JSON.parse(await projectEntry.async('text'))
+      if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>
+    }
+  } catch {
+    // neither format worked — caller throws the standard invalid-file error
+  }
+
+  throw new EntAnalysisError('분석할 수 없는 엔트리 파일입니다.', 'invalid_file')
+}
+
 interface BlockNode {
   type: string
 }
@@ -76,29 +159,7 @@ export async function analyzeEntFile(file: File): Promise<BlockCounts> {
     )
   }
 
-  let zip: JSZip
-  try {
-    zip = await JSZip.loadAsync(file)
-  } catch {
-    throw new EntAnalysisError('분석할 수 없는 엔트리 파일입니다.', 'invalid_file')
-  }
-
-  const projectEntry = Object.values(zip.files).find(
-    (entry) => !entry.dir && /project\.json$/i.test(entry.name),
-  )
-  if (!projectEntry) {
-    throw new EntAnalysisError('분석할 수 없는 엔트리 파일입니다.', 'invalid_file')
-  }
-
-  let project: Record<string, unknown>
-  try {
-    const text = await projectEntry.async('text')
-    const parsed = JSON.parse(text)
-    if (!parsed || typeof parsed !== 'object') throw new Error('not an object')
-    project = parsed as Record<string, unknown>
-  } catch {
-    throw new EntAnalysisError('분석할 수 없는 엔트리 파일입니다.', 'invalid_file')
-  }
+  const project = await readProjectJson(file)
 
   const objects = Array.isArray(project.objects) ? project.objects : null
   if (!objects) {

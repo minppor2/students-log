@@ -30,13 +30,11 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 
 교사는 별도로 Firebase Auth 이메일/비밀번호 계정을 사용하며, 학생 코드와는 완전히 분리되어 있습니다. 교사 계정은 Firebase 콘솔(Authentication 탭)에서 미리 만들어 두어야 합니다 — 앱 안에는 회원가입 화면이 없습니다(와이어프레임에도 로그인만 있음).
 
-## .ent 분석기의 한계
+## .ent 분석기
 
-Entry(.ent) 프로젝트 파일의 정확한 JSON 스키마는 공개 문서로 확정할 수 없었습니다. `src/lib/entryAnalyzer.ts`는 zip 안의 `project.json`을 열어 `type` 필드를 가진 모든 노드를 방어적으로 순회하며 블록 수를 집계하고, `src/lib/entryBlockTypes.ts`의 정규식으로 반복/조건/함수를 분류합니다.
+실제 학생이 playentry.org에서 내보낸 `.ent` 파일로 검증했습니다. **컨테이너 형식은 zip이 아니라 gzip으로 압축된 tar였습니다** — 처음엔 Scratch의 `.sb3`처럼 zip일 거라 가정했는데(공개 문서로 확정할 수 없어서 추정한 부분), 실제 파일은 `gzip → tar → temp/project.json` 구조였습니다. `src/lib/entryAnalyzer.ts`는 이제 gzip+tar를 먼저 시도하고(브라우저 내장 `DecompressionStream` + 직접 구현한 최소 tar 리더), 실패하면 zip(JSZip)으로 폴백합니다 — 혹시 다른 경로(오프라인 에디터 등)로 다른 형식의 `.ent`가 들어올 경우를 대비한 것입니다.
 
-실제 학생이 내보낸 `.ent` 샘플을 확보하면:
-1. `src/lib/entryBlockTypes.ts`의 정규식이 실제 block type 이름과 맞는지 확인하고 조정하세요.
-2. `project.variables`/`project.functions`의 실제 필드명이 다르면 `entryAnalyzer.ts`의 `countVariables`/`functionsRaw` 부분을 맞춰 고치세요.
+반면 블록/오브젝트 JSON 구조 자체는 처음 추정이 맞았습니다: `objects[].script`는 JSON 문자열이고, 파싱하면 블록마다 `type` 필드가 있는 트리 구조이며(`when_run_button_click`, `if_else`, `get_variable` 등), `variables[]`는 `variableType`(`variable`/`timer`/`answer` 등)으로 학생이 만든 변수와 내장 변수를 구분합니다. `entryAnalyzer.ts`의 방어적 순회(`type` 필드를 가진 모든 노드를 블록으로 집계)와 `entryBlockTypes.ts`의 정규식 분류는 실제 파일에서도 정상 동작함을 확인했습니다.
 
 ## AI 코치 피드백 (Gemini)
 
@@ -56,7 +54,6 @@ Gemini API 키는 브라우저에 노출되면 안 되므로(노출 시 다른 �
 ## 남은 확인 사항
 
 - 실제 Firebase 프로젝트 자격증명(`VITE_FIREBASE_*`)을 `.env.local`에 채워야 로그인/저장이 동작합니다.
-- 실제 `.ent` 샘플로 분석기 정확도를 검증해야 합니다(위 "한계" 참고).
 - 교사 계정은 Firebase 콘솔에서 미리 생성해야 합니다.
 - Firebase Storage를 콘솔에서 최초 1회 초기화해야 합니다(Storage 탭 → "시작하기").
 - Vercel에 `GEMINI_API_KEY` 환경변수를 설정해야 AI 피드백이 동작합니다(위 "AI 코치 피드백" 참고). 설정 전에는 AI 피드백만 조용히 생략되고 나머지 기능은 정상 동작합니다.
