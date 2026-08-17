@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStudentSession } from '../../contexts/StudentSessionContext'
 import { useTeacherUnits } from './useTeacherUnits'
 import { useStudentSubmissions } from './useStudentSubmissions'
 import { formatDate } from '../../lib/format'
+import { PortfolioSummaryPanel } from '../../components/PortfolioSummaryPanel'
 
 export function PortfolioPage() {
   const { session, logout } = useStudentSession()
@@ -14,6 +15,16 @@ export function PortfolioPage() {
 
   const filtered =
     unitFilter === 'all' ? submissions : submissions.filter((s) => s.unit === unitFilter)
+
+  // 종합 리포트는 필터와 무관하게 전체 히스토리를 다루고, submissions는
+  // 최신순(desc)이라 시간순(오래된 것부터)으로 뒤집어서 넘긴다.
+  const chronologicalWorks = useMemo(
+    () =>
+      [...submissions]
+        .reverse()
+        .map((s) => ({ title: s.title, unit: s.unit, counts: s.counts })),
+    [submissions],
+  )
 
   return (
     <div>
@@ -43,6 +54,10 @@ export function PortfolioPage() {
         >
           ＋ 새 작품
         </Link>
+      </div>
+
+      <div className="mt-4">
+        <PortfolioSummaryPanel works={chronologicalWorks} />
       </div>
 
       <div className="mt-6 space-y-3">

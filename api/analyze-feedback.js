@@ -3,9 +3,8 @@
 // so GEMINI_API_KEY (set in the Vercel dashboard, no VITE_ prefix) never
 // reaches the client bundle. See functions/index.js for the Firebase
 // Functions version of the same logic, kept for when Blaze is available.
-const GEMINI_MODEL = 'gemini-3.6-flash'
-const INTERACTIONS_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions'
-const IDENTITY_LOOKUP_URL = 'https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo'
+import { callGemini, verifyIdToken } from './_shared/gemini.js'
+
 const MAX_TEXT_LEN = 100
 
 function buildPrompt({ title, unit, counts, insights }) {
@@ -30,37 +29,10 @@ ${newList.length ? `새롭게 사용한 요소: ${newList.join(', ')}` : ''}
 ${expandedList.length ? `이전 작품보다 늘어난 요소: ${expandedList.join(', ')}` : ''}`
 }
 
-function extractOutputText(interaction) {
-  const steps = Array.isArray(interaction.steps) ? interaction.steps : []
-  return steps
-    .filter((step) => step.type === 'model_output')
-    .flatMap((step) => (Array.isArray(step.content) ? step.content : []))
-    .filter((part) => part.type === 'text' && typeof part.text === 'string')
-    .map((part) => part.text)
-    .join(' ')
-    .trim()
-}
-
-// Verifies the caller is a real signed-in Firebase user (anonymous students
-// included) without needing the Admin SDK / a service-account secret — the
-// public web API key is enough for this lookup endpoint.
-async function verifyIdToken(idToken) {
-  const webApiKey = process.env.VITE_FIREBASE_API_KEY
-  if (!webApiKey || !idToken) return false
-  try {
-    const resp = await fetch(`${IDENTITY_LOOKUP_URL}?key=${webApiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken }),
-    })
-    if (!resp.ok) return false
-    const data = await resp.json()
-    return Array.isArray(data.users) && data.users.length > 0
-  } catch {
-    return false
-  }
-}
-
+// 클라이언트는 구조 분석에서 나온 객관적 수치(counts/insights)만 보낸다.
+// 원본 .ent 파일이나 project.json은 절대 이 함수로 전송하지 않는다 —
+// AI는 수치를 해설하는 역할만 하고, PRD가 정한 "AI가 추정 평가하지 않는다"는
+// 원칙을 지키기 위해 카운트 이상의 정보를 아예 주지 않는다.
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method not allowed' })
@@ -87,32 +59,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(INTERACTIONS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
-      body: JSON.stringify({
-        model: GEMINI_MODEL,
-        input: buildPrompt({ title, unit, counts, insights }),
-      }),
-    })
-
-    if (!response.ok) {
-      console.error('Gemini 호출 실패', response.status, await response.text())
-      res.status(502).json({ error: 'AI 피드백 생성에 실패했습니다.' })
-      return
-    }
-
-    const data = await response.json()
-    const feedback = extractOutputText(data)
-    if (!feedback) {
-      console.error('Gemini 응답에 텍스트 없음', JSON.stringify(data))
-      res.status(502).json({ error: 'AI 피드백 생성에 실패했습니다.' })
-      return
-    }
-
+    const feedback = await callGemini(buildPrompt({ title, unit, counts, insights }), geminiKey)
     res.status(200).json({ feedback })
   } catch (err) {
-    console.error('Gemini 네트워크 오류', err)
-    res.status(500).json({ error: 'AI 피드백 생성에 실패했습니다.' })
+    console.error('Gemini 호출 실패', err)
+    res.status(502).json({ error: 'AI 피드백 생성에 실패했습니다.' })
   }
 }

@@ -1,11 +1,21 @@
+import { useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTeacherAuth } from '../../contexts/TeacherAuthContext'
 import { useStudentDetail } from './useStudentDetail'
+import { PortfolioSummaryPanel } from '../../components/PortfolioSummaryPanel'
 
 export function StudentDetailPage() {
   const { code } = useParams<{ code: string }>()
   const { user } = useTeacherAuth()
   const { submissions, isLoading } = useStudentDetail(user?.uid, code)
+
+  // useStudentDetail already orders ascending (oldest first), matching what
+  // the summary prompt expects — no reversal needed here (unlike the
+  // student's own portfolio, which orders newest-first).
+  const chronologicalWorks = useMemo(
+    () => submissions.map((s) => ({ title: s.title, unit: s.unit, counts: s.counts })),
+    [submissions],
+  )
 
   return (
     <div>
@@ -21,6 +31,12 @@ export function StudentDetailPage() {
         <p className="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
           아직 제출한 작품이 없어요.
         </p>
+      )}
+
+      {submissions.length > 0 && (
+        <div className="mt-4">
+          <PortfolioSummaryPanel works={chronologicalWorks} />
+        </div>
       )}
 
       {submissions.length > 0 && (
