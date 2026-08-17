@@ -23,8 +23,13 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == resource.data.teacherId;
     }
 
+    // 학생이 "단원 선택" 드롭다운을 채우려면 자기 교사의 units를 읽어야
+    // 하므로 get은 인증된 누구나 허용한다(students/{code}와 같은 패턴).
+    // list(전체 교사 목록 열람)와 write는 본인만 가능.
     match /teachers/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow get: if request.auth != null;
+      allow list: if false;
+      allow write: if request.auth != null && request.auth.uid == uid;
     }
 
     // 제출물은 작성 후 수정/삭제 불가(불변 기록). 권한은 studentUid를 직접

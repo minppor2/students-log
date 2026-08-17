@@ -12,12 +12,20 @@ export function useTeacherUnits(teacherId: string | undefined) {
       return
     }
     let cancelled = false
-    getDoc(doc(db, 'teachers', teacherId)).then((snap) => {
-      if (cancelled) return
-      const data = snap.data()
-      setUnits(Array.isArray(data?.units) ? (data.units as string[]) : [])
-      setIsLoading(false)
-    })
+    getDoc(doc(db, 'teachers', teacherId))
+      .then((snap) => {
+        if (cancelled) return
+        const data = snap.data()
+        setUnits(Array.isArray(data?.units) ? (data.units as string[]) : [])
+      })
+      .catch(() => {
+        // Permission errors etc. shouldn't leave the dropdown stuck loading
+        // forever — just fall back to an empty unit list.
+        if (!cancelled) setUnits([])
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
     return () => {
       cancelled = true
     }
