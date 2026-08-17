@@ -38,8 +38,25 @@ Entry(.ent) 프로젝트 파일의 정확한 JSON 스키마는 공개 문서로 
 1. `src/lib/entryBlockTypes.ts`의 정규식이 실제 block type 이름과 맞는지 확인하고 조정하세요.
 2. `project.variables`/`project.functions`의 실제 필드명이 다르면 `entryAnalyzer.ts`의 `countVariables`/`functionsRaw` 부분을 맞춰 고치세요.
 
+## AI 코치 피드백 (Gemini)
+
+구조적 분석(블록/반복/조건/함수 개수)은 그대로 유지하고, Gemini가 그 수치를 바탕으로 짧은 해설/격려 피드백만 한 줄 더 생성합니다. 원본 `.ent` 파일이나 코드 내용은 절대 Gemini로 전송하지 않습니다 — PRD의 "AI가 추정 평가하지 않는다" 원칙을 지키기 위해 카운트 이상의 정보를 주지 않습니다.
+
+Gemini API 키는 브라우저에 노출되면 안 되므로(노출 시 다른 사람이 그대로 꺼내가 무제한 사용 가능), 서버 쪽에서만 다룹니다. Firebase Cloud Functions는 Blaze(종량제) 요금제가 필요해서, 대신 **이미 배포 중인 Vercel의 서버리스 함수**(`api/analyze-feedback.js`)를 씁니다 — 별도 결제수단 등록 없이 무료로 됩니다.
+
+설정 방법:
+1. Vercel 대시보드 → 프로젝트 → Settings → Environment Variables
+2. `GEMINI_API_KEY`(**`VITE_` 접두사 없이!**)에 https://aistudio.google.com/apikey 에서 발급받은 값 저장 → Production 체크 → 저장
+3. Deployments → 최신 배포 → Redeploy
+
+`VITE_`가 붙으면 Vite가 클라이언트 번들에 박아 넣어버려서 키가 그대로 노출되니 절대 붙이면 안 됩니다.
+
+`functions/`에는 Firebase Cloud Functions 버전(같은 로직)도 남겨뒀습니다 — 나중에 Blaze로 업그레이드하면 `firebase functions:secrets:set GEMINI_API_KEY`로 시크릿 등록 후 `firebase deploy --only functions`로 전환할 수 있습니다(현재는 배포되어 있지 않음, 클라이언트는 Vercel 함수만 호출합니다).
+
 ## 남은 확인 사항
 
 - 실제 Firebase 프로젝트 자격증명(`VITE_FIREBASE_*`)을 `.env.local`에 채워야 로그인/저장이 동작합니다.
 - 실제 `.ent` 샘플로 분석기 정확도를 검증해야 합니다(위 "한계" 참고).
 - 교사 계정은 Firebase 콘솔에서 미리 생성해야 합니다.
+- Firebase Storage를 콘솔에서 최초 1회 초기화해야 합니다(Storage 탭 → "시작하기").
+- Vercel에 `GEMINI_API_KEY` 환경변수를 설정해야 AI 피드백이 동작합니다(위 "AI 코치 피드백" 참고). 설정 전에는 AI 피드백만 조용히 생략되고 나머지 기능은 정상 동작합니다.
